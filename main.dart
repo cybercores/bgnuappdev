@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'RegistrationView.dart';
-import 'RegistrationController.dart';
-import 'DataListView.dart';
+import 'drawer.dart';
 
 void main() {
   runApp(MyApp());
@@ -11,41 +9,26 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Registration Page',
+      title: 'AzeemShakirBSCSF22M08',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MainPage(),
+      home: HomeScreen(),
     );
   }
 }
 
-class MainPage extends StatefulWidget {
+class HomeScreen extends StatefulWidget {
   @override
-  _MainPageState createState() => _MainPageState();
+  _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _MainPageState extends State<MainPage> {
-  int _selectedIndex = 0;
-  final RegistrationController _controller = RegistrationController();
-
-  final List<Widget> _pages = [
-    RegistrationView(controller: RegistrationController()),
-    DataListView(),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    Navigator.pop(context);
-  }
-
+class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Main Page'),
+        title: Text('First App'),
       ),
       drawer: Drawer(
         child: ListView(
@@ -64,21 +47,148 @@ class _MainPageState extends State<MainPage> {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.app_registration),
-              title: Text('Registration Form'),
-              selected: _selectedIndex == 0,
-              onTap: () => _onItemTapped(0),
+              title: Text('Calculator'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CalculatorScreen(),
+                  ),
+                );
+              },
             ),
             ListTile(
-              leading: Icon(Icons.list),
-              title: Text('Saved Data'),
-              selected: _selectedIndex == 1,
-              onTap: () => _onItemTapped(1),
+              title: Text('Grades Page'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentDataGrid(),
+                  ),
+                );
+              },
             ),
           ],
         ),
       ),
-      body: _pages[_selectedIndex],
+      body: Center(
+        child: Text('Welcome to the Home Screen!'),
+      ),
+    );
+  }
+}
+
+class CalculatorScreen extends StatefulWidget {
+  @override
+  _CalculatorScreenState createState() => _CalculatorScreenState();
+}
+
+class _CalculatorScreenState extends State<CalculatorScreen> {
+  final TextEditingController _num1Controller = TextEditingController();
+  final TextEditingController _num2Controller = TextEditingController();
+  String _selectedOperation = 'Add';
+  String _result = '';
+
+  void _calculate() {
+    double num1 = double.tryParse(_num1Controller.text) ?? 0;
+    double num2 = double.tryParse(_num2Controller.text) ?? 0;
+
+    if (_num1Controller.text.isEmpty || _num2Controller.text.isEmpty) {
+      setState(() {
+        _result = 'Please enter both numbers.';
+      });
+      return;
+    }
+
+    double result = 0;
+
+    switch (_selectedOperation) {
+      case 'Add':
+        result = num1 + num2;
+        break;
+      case 'Subtract':
+        result = num1 - num2;
+        break;
+      case 'Multiply':
+        result = num1 * num2;
+        break;
+      case 'Divide':
+        result = num2 != 0 ? num1 / num2 : double.infinity;
+        break;
+    }
+
+    setState(() {
+      _result = 'Result: $result';
+    });
+  }
+
+  @override
+  void dispose() {
+    _num1Controller.dispose();
+    _num2Controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Calculator'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _num1Controller,
+              decoration: InputDecoration(
+                labelText: 'Enter Number 1',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: _num2Controller,
+              decoration: InputDecoration(
+                labelText: 'Enter Number 2',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 16),
+            DropdownButton<String>(
+              value: _selectedOperation,
+              onChanged: (value) {
+                setState(() {
+                  _selectedOperation = value!;
+                });
+              },
+              items: ['Add', 'Subtract', 'Multiply', 'Divide'].map((operation) {
+                return DropdownMenuItem<String>(
+                  value: operation,
+                  child: Text(operation),
+                );
+              }).toList(),
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _calculate,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+              ),
+              child: Text('Submit'),
+            ),
+            SizedBox(height: 16),
+            Text(
+              _result,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
