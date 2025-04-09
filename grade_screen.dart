@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'grade_model.dart';
-import 'grade_repository.dart';
-import 'student_model.dart';
+import 'package:apilocal/grade_model.dart';
+import 'package:apilocal/grade_repository.dart';
+import 'package:apilocal/student_model.dart';
+import 'package:apilocal/add_grade_screen.dart';
 
 final gradeRepositoryProvider = Provider((ref) => GradeRepository());
 final studentsProvider = FutureProvider<List<Student>>((ref) {
@@ -12,7 +13,7 @@ final studentsProvider = FutureProvider<List<Student>>((ref) {
 });
 
 class GradeScreen extends ConsumerStatefulWidget {
-  const GradeScreen({Key? key}) : super(key: key);
+  const GradeScreen({super.key});
 
   @override
   ConsumerState<GradeScreen> createState() => _GradeScreenState();
@@ -35,7 +36,7 @@ class _GradeScreenState extends ConsumerState<GradeScreen> {
   }
 
   Future<void> _eraseData() async {
-    bool confirm = await showDialog(
+    bool confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Confirm Erase'),
@@ -65,6 +66,18 @@ class _GradeScreenState extends ConsumerState<GradeScreen> {
       } catch (e) {
         EasyLoading.showError('Failed to erase data');
       }
+    }
+  }
+
+  Future<void> _navigateToAddScreen(BuildContext context,
+      {Student? student}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AddGradeScreen(student: student)),
+    );
+
+    if (result == true) {
+      ref.invalidate(studentsProvider);
     }
   }
 
@@ -126,12 +139,30 @@ class _GradeScreenState extends ConsumerState<GradeScreen> {
               style:
                   const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           subtitle: Text('${student.program} • ${student.rollNo}'),
-          trailing: Chip(
-            label: Text('CGPA: ${cgpa.toStringAsFixed(2)}',
-                style: TextStyle(
-                    color: _getTextColorForGpa(cgpa),
-                    fontWeight: FontWeight.bold)),
-            backgroundColor: _getBackgroundColorForGpa(cgpa),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Chip(
+                label: Text('CGPA: ${cgpa.toStringAsFixed(2)}',
+                    style: TextStyle(
+                        color: _getTextColorForGpa(cgpa),
+                        fontWeight: FontWeight.bold)),
+                backgroundColor: _getBackgroundColorForGpa(cgpa),
+              ),
+              PopupMenuButton(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'add',
+                    child: Text('Add Grade for this Student'),
+                  ),
+                ],
+                onSelected: (value) {
+                  if (value == 'add') {
+                    _navigateToAddScreen(context, student: student);
+                  }
+                },
+              ),
+            ],
           ),
         ),
         children: [
@@ -266,6 +297,12 @@ class _GradeScreenState extends ConsumerState<GradeScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          FloatingActionButton(
+            heroTag: 'addBtn',
+            onPressed: () => _navigateToAddScreen(context),
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'loadBtn',
             onPressed: _loadData,

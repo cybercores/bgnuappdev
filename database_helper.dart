@@ -46,7 +46,10 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getAllGrades() async {
     final db = await instance.database;
-    return await db.query('grades', orderBy: 'mysemester ASC, coursetitle ASC');
+    return await db.query(
+      'grades',
+      orderBy: 'studentname ASC, mysemester ASC, coursecode ASC',
+    );
   }
 
   Future<List<Map<String, dynamic>>> getGradesByStudent(String rollNo) async {

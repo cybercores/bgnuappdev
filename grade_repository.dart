@@ -1,8 +1,8 @@
 import 'package:logger/logger.dart';
-import 'api_service.dart';
-import 'database_helper.dart';
-import 'grade_model.dart';
-import 'student_model.dart';
+import 'package:apilocal/api_service.dart';
+import 'package:apilocal/database_helper.dart';
+import 'package:apilocal/grade_model.dart';
+import 'package:apilocal/student_model.dart';
 
 class GradeRepository {
   final ApiService _apiService = ApiService();
@@ -36,6 +36,15 @@ class GradeRepository {
       return _processStudents(grades);
     } catch (e) {
       _logger.e('Local Data Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> insertGrade(Grade grade) async {
+    try {
+      await _dbHelper.insertGrade(grade.toMap());
+    } catch (e) {
+      _logger.e('Insert Grade Error: $e');
       rethrow;
     }
   }

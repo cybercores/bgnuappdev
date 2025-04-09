@@ -1,4 +1,4 @@
-import 'grade_model.dart';
+import 'package:apilocal/grade_model.dart';
 
 class Student {
   final String name;

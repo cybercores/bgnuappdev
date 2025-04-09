@@ -1,25 +1,28 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:logger/logger.dart';
+import 'dart:convert';
 
 class ApiService {
-  final Logger _logger = Logger();
-  final String _baseUrl = 'https://bgnuerp.online/api/gradeapi';
+  Future<List<Map<String, dynamic>>> fetchGrades() async {
+    const apiUrl = 'https://bgnuerp.online/api/gradeapi';
 
-  Future<List<dynamic>> fetchGrades() async {
     try {
-      final response = await http.get(Uri.parse(_baseUrl));
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        return json.decode(response.body) as List;
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
       } else {
-        _logger.e('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception(
-            'Failed to load grades. Status code: ${response.statusCode}');
+        throw Exception('API Error: ${response.statusCode} - ${response.body}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('Network Error: ${e.message}');
+    } on FormatException catch (e) {
+      throw Exception('Data Parsing Error: ${e.message}');
     } catch (e) {
-      _logger.e('Network Error: $e');
-      throw Exception('Network error occurred. Please try again.');
+      throw Exception('Unexpected Error: ${e.toString()}');
     }
   }
 }
