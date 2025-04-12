@@ -1,42 +1,136 @@
+import 'package:fluttertoast/fluttertoast.dart';
+// import 'package:http/http.dart' as http;
+// import 'package:shared_preferences/shared_preferences.dart';
+// import 'dart:convert';
+
+// Future<bool> checkInternet() async {
+//   try {
+//     final response = await http.get(Uri.parse('https://www.google.com'));
+//     return response.statusCode == 200;
+//   } catch (e) {
+//     return false;
+//   }
+// }
+
+// void showToast(String message) {
+//   Fluttertoast.showToast(
+//     msg: message,
+//     toastLength: Toast.LENGTH_SHORT,
+//     gravity: ToastGravity.BOTTOM,
+//     backgroundColor: Colors.black54,
+//     textColor: Colors.white,
+//   );
+// }
+
+// Future<void> saveToLocal(Map<String, dynamic> data) async {
+//   final prefs = await SharedPreferences.getInstance();
+//   final localData = prefs.getStringList('localGrades') ?? [];
+//   localData.add(jsonEncode(data));
+//   await prefs.setStringList('localGrades', localData);
+// }
+
+// Future<List<Map<String, dynamic>>> getLocalData() async {
+//   final prefs = await SharedPreferences.getInstance();
+//   final localData = prefs.getStringList('localGrades') ?? [];
+//   return localData
+//       .map((item) => jsonDecode(item) as Map<String, dynamic>)
+//       .toList();
+// }
+
+// Future<void> clearLocalData() async {
+//   final prefs = await SharedPreferences.getInstance();
+//   await prefs.remove('localGrades');
+// }
+
+// Map<String, String> convertToStringMap(Map<String, dynamic> data) {
+//   return data.map((key, value) => MapEntry(key, value.toString()));
+// }
+
 import 'package:flutter/material.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:apilocal/grade_screen.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const ProviderScope(child: MyApp()));
-  _configureLoading();
-}
-
-void _configureLoading() {
-  EasyLoading.instance
-    ..displayDuration = const Duration(milliseconds: 2000)
-    ..indicatorType = EasyLoadingIndicatorType.fadingCircle
-    ..loadingStyle = EasyLoadingStyle.dark
-    ..indicatorSize = 45.0
-    ..radius = 10.0
-    ..progressColor = Colors.blue
-    ..backgroundColor = Colors.black
-    ..indicatorColor = Colors.blue
-    ..textColor = Colors.white
-    ..userInteractions = false
-    ..dismissOnTap = false;
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Grade Manager',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const GradeScreen(),
-      builder: EasyLoading.init(),
-    );
+Future<bool> checkInternet() async {
+  try {
+    final response = await http
+        .get(Uri.parse('https://www.google.com'))
+        .timeout(const Duration(seconds: 5));
+    return response.statusCode == 200;
+  } catch (e) {
+    return false;
   }
+}
+
+void showToast(String message) {
+  Fluttertoast.showToast(
+    msg: message,
+    toastLength: Toast.LENGTH_SHORT,
+    gravity: ToastGravity.BOTTOM,
+    backgroundColor: Colors.black54,
+    textColor: Colors.white,
+  );
+}
+
+Future<void> saveToLocal(Map<String, dynamic> data) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final localData = prefs.getStringList('localGrades') ?? [];
+    localData.add(jsonEncode(data));
+    await prefs.setStringList('localGrades', localData);
+  } catch (e) {
+    debugPrint('Error saving to local: $e');
+    throw Exception('Failed to save data locally');
+  }
+}
+
+Future<List<Map<String, dynamic>>> getLocalData() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final localData = prefs.getStringList('localGrades') ?? [];
+    return localData
+        .map((item) => jsonDecode(item) as Map<String, dynamic>)
+        .toList();
+  } catch (e) {
+    debugPrint('Error getting local data: $e');
+    throw Exception('Failed to load local data');
+  }
+}
+
+Future<void> clearLocalData() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('localGrades');
+  } catch (e) {
+    debugPrint('Error clearing local data: $e');
+    throw Exception('Failed to clear local data');
+  }
+}
+
+Map<String, String> convertToStringMap(Map<String, dynamic> data) {
+  return data.map((key, value) => MapEntry(key, value.toString()));
+}
+
+Future<http.Response> postGradeData(Map<String, dynamic> data) async {
+  return await http.post(
+    Uri.parse('https://devtechtop.com/management/public/api/grades'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: jsonEncode(data),
+  );
+}
+
+Future<http.Response> getGradeData({String? userId}) async {
+  final uri = userId != null && userId.isNotEmpty
+      ? Uri.parse(
+          'https://devtechtop.com/management/public/api/select_data?user_id=$userId')
+      : Uri.parse('https://devtechtop.com/management/public/api/select_data');
+
+  return await http.get(
+    uri,
+    headers: {'Accept': 'application/json'},
+  );
 }
