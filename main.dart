@@ -1,136 +1,98 @@
-import 'package:fluttertoast/fluttertoast.dart';
-// import 'package:http/http.dart' as http;
-// import 'package:shared_preferences/shared_preferences.dart';
-// import 'dart:convert';
-
-// Future<bool> checkInternet() async {
-//   try {
-//     final response = await http.get(Uri.parse('https://www.google.com'));
-//     return response.statusCode == 200;
-//   } catch (e) {
-//     return false;
-//   }
-// }
-
-// void showToast(String message) {
-//   Fluttertoast.showToast(
-//     msg: message,
-//     toastLength: Toast.LENGTH_SHORT,
-//     gravity: ToastGravity.BOTTOM,
-//     backgroundColor: Colors.black54,
-//     textColor: Colors.white,
-//   );
-// }
-
-// Future<void> saveToLocal(Map<String, dynamic> data) async {
-//   final prefs = await SharedPreferences.getInstance();
-//   final localData = prefs.getStringList('localGrades') ?? [];
-//   localData.add(jsonEncode(data));
-//   await prefs.setStringList('localGrades', localData);
-// }
-
-// Future<List<Map<String, dynamic>>> getLocalData() async {
-//   final prefs = await SharedPreferences.getInstance();
-//   final localData = prefs.getStringList('localGrades') ?? [];
-//   return localData
-//       .map((item) => jsonDecode(item) as Map<String, dynamic>)
-//       .toList();
-// }
-
-// Future<void> clearLocalData() async {
-//   final prefs = await SharedPreferences.getInstance();
-//   await prefs.remove('localGrades');
-// }
-
-// Map<String, String> convertToStringMap(Map<String, dynamic> data) {
-//   return data.map((key, value) => MapEntry(key, value.toString()));
-// }
-
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:qrscan2/qr_scanner_screen.dart';
+import 'package:qrscan2/qr_generator_screen.dart';
 
-Future<bool> checkInternet() async {
-  try {
-    final response = await http
-        .get(Uri.parse('https://www.google.com'))
-        .timeout(const Duration(seconds: 5));
-    return response.statusCode == 200;
-  } catch (e) {
-    return false;
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Advanced QR Tools',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const MainScreen(),
+      debugShowCheckedModeBanner: false,
+    );
   }
 }
 
-void showToast(String message) {
-  Fluttertoast.showToast(
-    msg: message,
-    toastLength: Toast.LENGTH_SHORT,
-    gravity: ToastGravity.BOTTOM,
-    backgroundColor: Colors.black54,
-    textColor: Colors.white,
-  );
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-Future<void> saveToLocal(Map<String, dynamic> data) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final localData = prefs.getStringList('localGrades') ?? [];
-    localData.add(jsonEncode(data));
-    await prefs.setStringList('localGrades', localData);
-  } catch (e) {
-    debugPrint('Error saving to local: $e');
-    throw Exception('Failed to save data locally');
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = [
+    const QRScannerScreen(),
+    const QRGeneratorScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Advanced QR Tools'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              _showAdvancedSettings(context);
+            },
+          ),
+        ],
+      ),
+      body: _screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scanner',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code),
+            label: 'Generator',
+          ),
+        ],
+      ),
+    );
   }
-}
 
-Future<List<Map<String, dynamic>>> getLocalData() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final localData = prefs.getStringList('localGrades') ?? [];
-    return localData
-        .map((item) => jsonDecode(item) as Map<String, dynamic>)
-        .toList();
-  } catch (e) {
-    debugPrint('Error getting local data: $e');
-    throw Exception('Failed to load local data');
+  void _showAdvancedSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Advanced Settings'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Configure advanced options here'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
-}
-
-Future<void> clearLocalData() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('localGrades');
-  } catch (e) {
-    debugPrint('Error clearing local data: $e');
-    throw Exception('Failed to clear local data');
-  }
-}
-
-Map<String, String> convertToStringMap(Map<String, dynamic> data) {
-  return data.map((key, value) => MapEntry(key, value.toString()));
-}
-
-Future<http.Response> postGradeData(Map<String, dynamic> data) async {
-  return await http.post(
-    Uri.parse('https://devtechtop.com/management/public/api/grades'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: jsonEncode(data),
-  );
-}
-
-Future<http.Response> getGradeData({String? userId}) async {
-  final uri = userId != null && userId.isNotEmpty
-      ? Uri.parse(
-          'https://devtechtop.com/management/public/api/select_data?user_id=$userId')
-      : Uri.parse('https://devtechtop.com/management/public/api/select_data');
-
-  return await http.get(
-    uri,
-    headers: {'Accept': 'application/json'},
-  );
 }
