@@ -1,161 +1,190 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_database/ui/firebase_animated_list.dart';
+import 'package:intl/intl.dart';
 
-void main() => runApp(const MyMapApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MyApp());
+}
 
-class MyMapApp extends StatelessWidget {
-  const MyMapApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'House Map',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MapScreen(),
+      title: 'Firebase Messages',
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+      ),
+      home: const MessageScreen(),
     );
   }
 }
 
-class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+class MessageScreen extends StatefulWidget {
+  const MessageScreen({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MessageScreen> createState() => _MessageScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
-  final MapController _mapController = MapController();
-  final TextEditingController _searchController = TextEditingController();
-  final List<String> _filterOptions = ['House', 'Park', 'School', 'Hospital'];
-  String _selectedFilter = 'House';
-  LatLng _houseLocation = const LatLng(40.7128, -74.0060);
-  bool _isSearching = false;
-  double _currentZoom = 15.0;
+class _MessageScreenState extends State<MessageScreen> {
+  final DatabaseReference _databaseRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL: 'https://evening-e9397-default-rtdb.firebaseio.com/',
+  ).ref().child('messege');
+
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
-  void initState() {
-    super.initState();
-    _getCurrentLocation();
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  Future<void> _getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a message')),
+      );
+      return;
     }
 
-    if (permission == LocationPermission.deniedForever) return;
-
-    final position = await Geolocator.getCurrentPosition();
-    setState(() => _houseLocation = LatLng(position.latitude, position.longitude));
-    _mapController.move(_houseLocation, _currentZoom);
-  }
-
-  void _searchLocations() {
-    setState(() => _isSearching = true);
-
-    Future.delayed(const Duration(seconds: 1), () {
-      setState(() {
-        _isSearching = false;
-        double offset = switch (_selectedFilter) {
-          'Park' => 0.02,
-          'School' => 0.03,
-          'Hospital' => -0.02,
-          _ => 0.01,
-        };
-
-        _mapController.move(
-          LatLng(_houseLocation.latitude + offset, _houseLocation.longitude + offset),
-          _currentZoom,
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      await _databaseRef.push().set({
+        'text': _messageController.text.trim(),
+        'timestamp': timestamp,
+      });
+      _messageController.clear();
+      // Scroll to bottom after sending a message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
         );
       });
-    });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send message: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteMessage(String key) async {
+    try {
+      await _databaseRef.child(key).remove();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message deleted')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My House Map')),
-      body: Stack(
+      appBar: AppBar(
+        title: const Text('Firebase Messages'),
+        centerTitle: true,
+      ),
+      body: Column(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              center: _houseLocation,
-              zoom: _currentZoom,
-              onPositionChanged: (position, hasGesture) {
-                if (hasGesture) setState(() => _currentZoom = position.zoom ?? _currentZoom);
+          Expanded(
+            child: FirebaseAnimatedList(
+              controller: _scrollController,
+              query: _databaseRef,
+              sort: (a, b) => b.key!.compareTo(a.key!),
+              itemBuilder: (context, snapshot, animation, index) {
+                final message = snapshot.value as Map<dynamic, dynamic>;
+                final timestamp = message['timestamp'] as int;
+                final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+                final formattedDate =
+                DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message['text'] as String,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              formattedDate,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.grey),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20),
+                              onPressed: () => _deleteMessage(snapshot.key!),
+                              tooltip: 'Delete',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               },
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.house_map_app',
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _houseLocation,
-                    width: 80,
-                    height: 80,
-                    builder: (ctx) => const Icon(Icons.home, color: Colors.red, size: 40),
-                  ),
-                ],
-              ),
-            ],
           ),
-          Positioned(
-            top: 10,
-            left: 10,
-            right: 10,
-            child: Card(
-              elevation: 5,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search near my house...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _isSearching = false);
-                          },
-                        ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Type your message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      onSubmitted: (_) => _searchLocations(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    DropdownButton<String>(
-                      value: _selectedFilter,
-                      items: _filterOptions.map((value) =>
-                          DropdownMenuItem(value: value, child: Text(value))
-                      ).toList(),
-                      onChanged: (newValue) =>
-                          setState(() => _selectedFilter = newValue!),
-                    ),
-                  ],
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                FloatingActionButton(
+                  onPressed: _sendMessage,
+                  child: const Icon(Icons.send),
+                ),
+              ],
             ),
           ),
-          if (_isSearching) const Center(child: CircularProgressIndicator()),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _getCurrentLocation,
-        child: const Icon(Icons.my_location),
       ),
     );
   }
