@@ -1,104 +1,162 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'api_service.dart';
-import 'data_entry_screen.dart';
-import 'local_data_screen.dart';
-import 'api_data_screen.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox('grades');
+void main() => runApp(const MyMapApp());
 
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyMapApp extends StatelessWidget {
+  const MyMapApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Grade Manager Pro+',
+      title: 'House Map',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const MapScreen(),
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        cardTheme: CardTheme(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          margin: const EdgeInsets.all(8),
-        ),
-      ),
-      home: const MainNavigationScreen(),
     );
   }
 }
 
-class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+class MapScreen extends StatefulWidget {
+  const MapScreen({super.key});
 
   @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 0;
-  final ApiService apiService = ApiService();
-  late final List<Widget> _screens;
+class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
+  final List<String> _filterOptions = ['House', 'Park', 'School', 'Hospital'];
+  String _selectedFilter = 'House';
+  LatLng _houseLocation = const LatLng(40.7128, -74.0060);
+  bool _isSearching = false;
+  double _currentZoom = 15.0;
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      DataEntryScreen(apiService: apiService),
-      LocalDataScreen(apiService: apiService),
-      ApiDataScreen(apiService: apiService),
-    ];
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+
+    if (permission == LocationPermission.deniedForever) return;
+
+    final position = await Geolocator.getCurrentPosition();
+    setState(() => _houseLocation = LatLng(position.latitude, position.longitude));
+    _mapController.move(_houseLocation, _currentZoom);
+  }
+
+  void _searchLocations() {
+    setState(() => _isSearching = true);
+
+    Future.delayed(const Duration(seconds: 1), () {
+      setState(() {
+        _isSearching = false;
+        double offset = switch (_selectedFilter) {
+          'Park' => 0.02,
+          'School' => 0.03,
+          'Hospital' => -0.02,
+          _ => 0.01,
+        };
+
+        _mapController.move(
+          LatLng(_houseLocation.latitude + offset, _houseLocation.longitude + offset),
+          _currentZoom,
+        );
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.add_chart),
-            label: 'Add Grade',
+      appBar: AppBar(title: const Text('My House Map')),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              center: _houseLocation,
+              zoom: _currentZoom,
+              onPositionChanged: (position, hasGesture) {
+                if (hasGesture) setState(() => _currentZoom = position.zoom ?? _currentZoom);
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.house_map_app',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _houseLocation,
+                    width: 80,
+                    height: 80,
+                    builder: (ctx) => const Icon(Icons.home, color: Colors.red, size: 40),
+                  ),
+                ],
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.storage),
-            label: 'Local Data',
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: Card(
+              elevation: 5,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search near my house...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _isSearching = false);
+                          },
+                        ),
+                      ),
+                      onSubmitted: (_) => _searchLocations(),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButton<String>(
+                      value: _selectedFilter,
+                      items: _filterOptions.map((value) =>
+                          DropdownMenuItem(value: value, child: Text(value))
+                      ).toList(),
+                      onChanged: (newValue) =>
+                          setState(() => _selectedFilter = newValue!),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.cloud),
-            label: 'API Data',
-          ),
+          if (_isSearching) const Center(child: CircularProgressIndicator()),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _getCurrentLocation,
+        child: const Icon(Icons.my_location),
       ),
     );
   }
 }
-
-
-
