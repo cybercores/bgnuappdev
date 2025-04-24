@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_database/ui/firebase_animated_list.dart';
-import 'package:intl/intl.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+void main() {
   runApp(const MyApp());
 }
 
@@ -16,176 +10,187 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Firebase Messages',
+      title: 'Advanced State Management',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.light,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MessageScreen(),
+      home: const TextDataManager(),
     );
   }
 }
 
-class MessageScreen extends StatefulWidget {
-  const MessageScreen({super.key});
+class TextDataManager extends StatefulWidget {
+  const TextDataManager({super.key});
 
   @override
-  State<MessageScreen> createState() => _MessageScreenState();
+  State<TextDataManager> createState() => _TextDataManagerState();
 }
 
-class _MessageScreenState extends State<MessageScreen> {
-  final DatabaseReference _databaseRef = FirebaseDatabase.instanceFor(
-    app: Firebase.app(),
-    databaseURL: 'https://evening-e9397-default-rtdb.firebaseio.com/',
-  ).ref().child('messege');
-
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+class _TextDataManagerState extends State<TextDataManager> {
+  final TextEditingController _textController = TextEditingController();
+  String _displayText = '';
+  bool _isEditing = false;
+  int _editIndex = -1;
+  final List<String> _textList = [];
 
   @override
   void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
-  Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a message')),
-      );
-      return;
-    }
+  void _submitData() {
+    if (_textController.text.trim().isEmpty) return;
 
-    try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      await _databaseRef.push().set({
-        'text': _messageController.text.trim(),
-        'timestamp': timestamp,
-      });
-      _messageController.clear();
-      // Scroll to bottom after sending a message
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
-      );
-    }
+    setState(() {
+      if (_isEditing) {
+        // Update existing item
+        _textList[_editIndex] = _textController.text;
+        _isEditing = false;
+        _editIndex = -1;
+      } else {
+        // Add new item
+        _textList.add(_textController.text);
+      }
+      _displayText = _textController.text;
+      _textController.clear();
+    });
   }
 
-  Future<void> _deleteMessage(String key) async {
-    try {
-      await _databaseRef.child(key).remove();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message deleted')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete message: $e')),
-      );
-    }
+  void _editData(int index) {
+    setState(() {
+      _textController.text = _textList[index];
+      _isEditing = true;
+      _editIndex = index;
+      _displayText = _textList[index];
+    });
+  }
+
+  void _deleteData(int index) {
+    setState(() {
+      _textList.removeAt(index);
+      if (_isEditing && _editIndex == index) {
+        _isEditing = false;
+        _editIndex = -1;
+        _textController.clear();
+        _displayText = _textList.isNotEmpty ? _textList.last : '';
+      } else if (_textList.isEmpty) {
+        _displayText = '';
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Firebase Messages'),
-        centerTitle: true,
+        title: const Text('Advanced Text Manager'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.cancel),
+              onPressed: () {
+                setState(() {
+                  _isEditing = false;
+                  _editIndex = -1;
+                  _textController.clear();
+                });
+              },
+            ),
+        ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: FirebaseAnimatedList(
-              controller: _scrollController,
-              query: _databaseRef,
-              sort: (a, b) => b.key!.compareTo(a.key!),
-              itemBuilder: (context, snapshot, animation, index) {
-                final message = snapshot.value as Map<dynamic, dynamic>;
-                final timestamp = message['timestamp'] as int;
-                final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
-                final formattedDate =
-                DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          message['text'] as String,
-                          style: Theme.of(context).textTheme.bodyLarge,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _textController,
+              decoration: InputDecoration(
+                labelText: _isEditing ? 'Edit your text' : 'Enter your text',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _submitData,
+                ),
+              ),
+              onSubmitted: (_) => _submitData(),
+            ),
+            const SizedBox(height: 20),
+            if (_displayText.isNotEmpty)
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isEditing ? 'Editing Preview:' : 'Latest Submission:',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Colors.grey[600],
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _displayText,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: _textList.isEmpty
+                  ? const Center(
+                child: Text(
+                  'No submissions yet',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              )
+                  : ListView.builder(
+                itemCount: _textList.length,
+                itemBuilder: (context, index) {
+                  return Dismissible(
+                    key: Key(_textList[index] + index.toString()),
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    onDismissed: (direction) => _deleteData(index),
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        title: Text(_textList[index]),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              formattedDate,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: Colors.grey),
-                            ),
                             IconButton(
-                              icon: const Icon(Icons.delete, size: 20),
-                              onPressed: () => _deleteMessage(snapshot.key!),
-                              tooltip: 'Delete',
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => _editData(index),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type your message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
                       ),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FloatingActionButton(
-                  onPressed: _sendMessage,
-                  child: const Icon(Icons.send),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+      floatingActionButton: _isEditing
+          ? FloatingActionButton(
+        onPressed: _submitData,
+        child: const Icon(Icons.save),
+      )
+          : null,
     );
   }
 }
