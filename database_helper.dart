@@ -16,25 +16,25 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _createDB,
+    );
   }
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE grades (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        studentname TEXT,
-        fathername TEXT,
-        progname TEXT,
-        shift TEXT,
-        rollno TEXT,
-        coursecode TEXT,
-        coursetitle TEXT,
-        credithours REAL,
-        obtainedmarks REAL,
-        mysemester TEXT,
-        consider_status TEXT,
-        UNIQUE(rollno, coursecode) ON CONFLICT REPLACE
+        user_id TEXT,
+        course_name TEXT,
+        semester_no TEXT,
+        credit_hours TEXT,
+        marks TEXT,
+        grade TEXT,
+        is_synced INTEGER DEFAULT 0
       )
     ''');
   }
@@ -44,46 +44,37 @@ class DatabaseHelper {
     return await db.insert('grades', grade);
   }
 
+  Future<List<Map<String, dynamic>>> getUnsyncedGrades() async {
+    final db = await instance.database;
+    return await db.query(
+      'grades',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getAllGrades() async {
     final db = await instance.database;
-    return await db.query(
+    return await db.query('grades');
+  }
+
+  Future<int> updateGradeSyncStatus(int id) async {
+    final db = await instance.database;
+    return await db.update(
       'grades',
-      orderBy: 'studentname ASC, mysemester ASC, coursecode ASC',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
-  Future<List<Map<String, dynamic>>> getGradesByStudent(String rollNo) async {
-    final db = await instance.database;
-    return await db.query(
-      'grades',
-      where: 'rollno = ?',
-      whereArgs: [rollNo],
-      orderBy: 'mysemester ASC, coursetitle ASC',
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getUniqueStudents() async {
-    final db = await instance.database;
-    return await db.rawQuery('''
-      SELECT DISTINCT 
-        studentname, fathername, progname, shift, rollno 
-      FROM grades
-      ORDER BY studentname ASC
-    ''');
-  }
-
-  Future<int> deleteGrade(String gradeId) async {
+  Future<int> deleteGrade(int id) async {
     final db = await instance.database;
     return await db.delete(
       'grades',
-      where: 'rollno || coursecode = ?',
-      whereArgs: [gradeId],
+      where: 'id = ?',
+      whereArgs: [id],
     );
-  }
-
-  Future<int> deleteAllGrades() async {
-    final db = await instance.database;
-    return await db.delete('grades');
   }
 
   Future close() async {
